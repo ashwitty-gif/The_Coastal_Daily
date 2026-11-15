@@ -7,6 +7,7 @@
 <section><div class="sectionhead"><h2>Today's coast</h2><span class="small"><span class="time-buttons" role="group" aria-label="Time zone"><button type="button" class="time-button" data-zone="qld" aria-pressed="true">QLD (AEST)</button><button type="button" class="time-button" data-zone="nsw" aria-pressed="false">NSW (AEDT)</button></span> <span id="zone-note">AEST</span></span></div><div class="grid">
 <div class="card coast-card" id="high-card"><span class="condition-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5c2-2 4-2 6 0s4 2 6 0 4-2 8 0"/><path d="M12 21V11"/><path d="m8 15 4-4 4 4"/></svg></span><div class="label">High tides</div><div class="value" id="high">Loading tides…</div><div class="small" id="highnote">Bureau of Meteorology · Tweed River</div><div class="small tide-following" id="high-following"></div></div>
 <div class="card coast-card" id="low-card"><span class="condition-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 19c2-2 4-2 6 0s4 2 6 0 4-2 8 0"/><path d="M12 3v10"/><path d="m8 9 4 4 4-4"/></svg></span><div class="label">Low tides</div><div class="value" id="low">Loading tides…</div><div class="small" id="lownote">Bureau of Meteorology · Tweed River</div><div class="small tide-following" id="low-following"></div></div>
+<div class="card coast-card" id="moon-card"><span class="condition-icon" aria-hidden="true"><span id="moon-symbol" style="font-size:27px;line-height:1">🌙</span></span><div class="label">Moon phase</div><div class="value" id="moon-phase">Calculating…</div><div class="small" id="moon-light"></div><div class="small tide-following" id="moon-next"></div></div>
 <div class="card coast-card" id="solar-card-0"><span class="condition-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" id="solar-icon-0"></svg></span><div class="label" id="solar-label-0">Loading…</div><div class="value" id="solar-time-0">—</div><div class="small"><span class="solar-timezone">QLD/NSW local time</span></div></div>
 <div class="card coast-card" id="solar-card-1"><span class="condition-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" id="solar-icon-1"></svg></span><div class="label" id="solar-label-1">Loading…</div><div class="value" id="solar-time-1">—</div><div class="small">Coolangatta time</div></div></div></section>
 <section><div class="sectionhead"><h2>Current conditions</h2><span id="status">Loading weather…</span></div><div class="grid conditions" id="conditions"></div><p class="source">Weather and marine data: Open-Meteo. Surf-size labels are rough estimates based on offshore wave height, not breaking wave faces or a beach-specific surf report. <button id="retry" type="button">Refresh data</button></p><p id="diagnostic" class="source" role="status"></p></section>
@@ -71,6 +72,22 @@ async function loadTides(){
  }catch(error){for(const kind of ['high','low']){$(kind).textContent='Tides unavailable';$(kind+'note').textContent='Verified data file not yet published';$(kind+'-following').textContent='';}}
 }
 
+
+// Approximate lunar phases from a mean synodic month; dates are estimates, not ephemeris predictions.
+const moonEpoch=Date.UTC(2000,0,6,18,14),synodicDays=29.530588853,moonCycleMs=synodicDays*86400000;
+function renderMoon(){
+ const now=new Date(),fraction=((now.getTime()-moonEpoch)/moonCycleMs%1+1)%1;
+ const names=['New moon','Waxing crescent','First quarter','Waxing gibbous','Full moon','Waning gibbous','Last quarter','Waning crescent'];
+ const symbols=['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'];
+ const index=Math.floor((fraction+1/16)*8)%8;
+ $('moon-phase').textContent=names[index];$('moon-symbol').textContent=symbols[index];
+ $('moon-light').textContent='Approx. '+Math.round((1-Math.cos(2*Math.PI*fraction))*50)+'% illuminated';
+ const untilNew=((1-fraction)%1||1)*moonCycleMs,untilFull=((.5-fraction+1)%1||1)*moonCycleMs;
+ const isFull=untilFull<untilNew,when=new Date(now.getTime()+(isFull?untilFull:untilNew));
+ const label=isFull?'full moon':'new moon';
+ $('moon-next').textContent='Next '+label+' (approx.): '+new Intl.DateTimeFormat('en-AU',{timeZone:displayZone(),weekday:'short',day:'numeric',month:'short'}).format(when);
+}
+
 async function load(){
 try{
 const weatherURL='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&timezone=Australia%2FBrisbane&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset&forecast_days=6';
@@ -102,9 +119,9 @@ upcoming.forEach((event,i)=>{$('solar-label-'+i).textContent=(event.kind+' '+(da
 $('days').innerHTML='<div class="day day-header"><span>Day</span><span>Temp</span><span>Weather</span><span style="text-align:right">Surf</span></div>'+w.daily.time.slice(0,5).map((date,i)=>{const day=new Date(date+'T12:00:00+10:00').toLocaleDateString('en-AU',{timeZone:tz,weekday:'long'});const wave=at(mh,'wave_height',date+'T12:00');const surfInfo=surf(safe(wave));const weather=weatherLabel(w.daily.weather_code?.[i]);return '<div class="day"><strong>'+day+'</strong><span class="day-cell">'+fmt(w.daily.temperature_2m_min[i],'°')+' / '+fmt(w.daily.temperature_2m_max[i],'°')+'</span><span class="day-cell">'+weather+'</span><span class="day-cell">'+surfInfo[0]+'<small>'+fmt(safe(wave),' m',1)+'</small></span></div>'}).join('')}
 $('status').textContent=w?'Live forecast · '+new Date().toLocaleTimeString('en-AU',{timeZone:tz,hour:'numeric',minute:'2-digit'}):'Weather temporarily unavailable';
 }catch(e){$('status').textContent='Forecast temporarily unavailable';$('diagnostic').textContent='Data processing error: '+(e?.message||String(e));$('days').innerHTML='<p class="error">Unable to load forecast right now.</p>'}}
-document.querySelectorAll('.time-button').forEach(b=>b.addEventListener('click',()=>{selectedZone=b.dataset.zone;localStorage.setItem('coastalTimeMode',selectedZone);renderTides();load()}));
+document.querySelectorAll('.time-button').forEach(b=>b.addEventListener('click',()=>{selectedZone=b.dataset.zone;localStorage.setItem('coastalTimeMode',selectedZone);renderTides();renderMoon();load()}));
 $('retry').addEventListener('click',()=>{ $('status').textContent='Refreshing…';load() });
-loadTides();setInterval(renderTides,60000);
+loadTides();renderMoon();setInterval(()=>{renderTides();renderMoon()},60000);
 load();
 fetch('articles.json').then(r=>r.ok?r.json():[]).then(items=>{if(!Array.isArray(items))return;$('articles').replaceChildren(...items.slice(0,5).map(a=>{const div=document.createElement('div');div.className='item';const h=document.createElement('h3');h.textContent=a.title||'Untitled';const p=document.createElement('p');p.textContent=a.date||'';div.append(h,p);if(a.url&&/^https?:\/\//.test(a.url)){const link=document.createElement('a');link.href=a.url;link.textContent='Read article ↗';link.target='_blank';link.rel='noopener';div.append(link)}else if(a.summary){const s=document.createElement('p');s.textContent=a.summary;div.append(s)}return div}))}).catch(()=>{});
 </script></body></html>
