@@ -59,7 +59,14 @@ function renderTides(){
   note.textContent=tideDay(when)+' · '+Number(first.height).toFixed(2)+' m · '+(selectedZone==='nsw'?'NSW':'QLD')+' time';
   following.textContent=next?'Following '+kind+': '+tideDay(new Date(next.time))+' '+tideClock(new Date(next.time))+' · '+Number(next.height).toFixed(2)+' m':'';
  }
- const first=upcoming[0];$('high-card').style.order=first?.type==='high'?'0':'1';$('low-card').style.order=first?.type==='low'?'0':'1';
+ const first=upcoming[0];
+// Keep both tide cards together in the first row; only swap their positions.
+$('high-card').style.order=first?.type==='high'?'0':'1';
+$('low-card').style.order=first?.type==='low'?'0':'1';
+$('solar-card-0').style.order='2';
+$('solar-card-1').style.order='3';
+$('moon-card').style.order='4';
+$('spotlight-card').style.order='5';
 }
 async function loadTides(){
  try{
