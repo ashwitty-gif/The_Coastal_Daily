@@ -185,7 +185,7 @@ async function loadAshNote(){
   const published=Date.parse(list?.[0]?.commit?.committer?.date||'');
   ashNoteExpires=published+6*60*60*1000;
   if(!Number.isFinite(published)||Date.now()>=ashNoteExpires){section.hidden=true;return;}
-  label.textContent=note;
+  label.textContent=note.replace(/\s*[-–—]\s*Ash Witty\s*$/i,'').trimEnd()+'\n\n- Ash Witty';
   section.hidden=false;
  }catch(e){section.hidden=true;}
 }
